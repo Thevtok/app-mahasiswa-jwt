@@ -4,15 +4,16 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"mahasiswa_api/utils"
 )
 
 func LoadDatabase() *sql.DB {
-	dbHost := "localhost"
-	dbPort := "5432"
-	dbUser := "postgres"
-	dbPassword := "meongberem"
-	dbName := "test-db"
-	sslMode := "disable"
+	dbHost := utils.DotEnv("DB_HOST")
+	dbPort := utils.DotEnv("DB_PORT")
+	dbUser := utils.DotEnv("DB_USER")
+	dbPassword := utils.DotEnv("DB_PASSWORD")
+	dbName := utils.DotEnv("DB_NAME")
+	sslMode := utils.DotEnv("SSL_MODE")
 
 	dataSourceName := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", dbHost, dbPort, dbUser, dbPassword, dbName, sslMode)
 	db, err := sql.Open("postgres", dataSourceName)

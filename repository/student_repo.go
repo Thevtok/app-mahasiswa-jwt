@@ -23,7 +23,9 @@ type studentRepo struct {
 func (r *studentRepo) GetAll() any {
 	var students []model.Students
 
-	query := "SELECT id, name, age, major FROM students"
+	query := `SELECT s.name, s.age, s.major,  c.username 
+				FROM students s
+				JOIN credentials c ON s.c_username = c.username`
 	rows, err := r.db.Query(query)
 
 	if err != nil {
@@ -34,12 +36,10 @@ func (r *studentRepo) GetAll() any {
 	}
 	defer rows.Close()
 
-	defer rows.Close()
-
 	for rows.Next() {
 		var student model.Students
 
-		if err := rows.Scan(&student.ID, &student.Name, &student.Age, &student.Major); err != nil {
+		if err := rows.Scan(&student.Name, &student.Age, &student.Major, &student.Username); err != nil {
 			log.Println(err)
 		}
 
@@ -77,10 +77,31 @@ func (r *studentRepo) GetById(id int) any {
 }
 
 func (r *studentRepo) Create(newstudent *model.Students) string {
-	query := "INSERT INTO students (name, age, major) VALUES ($1, $2, $3)"
-	_, err := r.db.Exec(query, newstudent.Name, newstudent.Age, newstudent.Major)
-
+	tx, err := r.db.Begin()
 	if err != nil {
+		log.Println(err)
+		return "failed to create student"
+	}
+
+	// insert into students table
+	query1 := "INSERT INTO students (name, age, major,c_username) VALUES ($1, $2, $3,$4)"
+	_, err = tx.Exec(query1, newstudent.Name, newstudent.Age, newstudent.Major, newstudent.C_Username)
+	if err != nil {
+		tx.Rollback()
+		log.Println(err)
+		return "failed to create student"
+	}
+
+	// insert into credentials table
+	query2 := "INSERT INTO credentials (username, password) VALUES ($1, $2)"
+	_, err = tx.Exec(query2, newstudent.Username, newstudent.Password)
+	if err != nil {
+		tx.Rollback()
+		log.Println(err)
+		return "failed to create student"
+	}
+
+	if err = tx.Commit(); err != nil {
 		log.Println(err)
 		return "failed to create student"
 	}

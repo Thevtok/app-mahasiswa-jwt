@@ -6,34 +6,48 @@ import (
 	"mahasiswa_api/controller"
 	"mahasiswa_api/repository"
 	"mahasiswa_api/usecase"
+	"mahasiswa_api/utils"
+
+	"github.com/Thevtok/auth/cont"
+	"github.com/Thevtok/auth/repo"
+	"github.com/Thevtok/auth/service"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
 )
 
 func StartServer() {
-
-	serverPort := ":8080"
+	s_key := []byte(utils.DotEnv("KEY"))
 
 	db := config.LoadDatabase()
+	defer db.Close()
+	authMiddleware := cont.AuthMiddleware(s_key)
 
-	router := gin.Default()
+	r := gin.Default()
 
-	studentsRouter := router.Group("/students")
+	studentsRouter := r.Group("/students")
+	studentsRouter.Use(authMiddleware)
 
-	studentRepo := repository.NewStudentRepo(db)
-	studentUsecase := usecase.NewStudentUsecase(studentRepo)
-	studentCtrl := controller.NewStudentController(studentUsecase)
+	sr := repository.NewStudentRepo(db)
+	su := usecase.NewStudentUsecase(sr)
+	sc := controller.NewStudentController(su)
+	studentRepo := repo.NewStudentRepo(db)
+	loginService := service.NewLoginService(studentRepo)
+	loginJwt := cont.NewUserJwt(loginService)
 
-	studentsRouter.GET("", studentCtrl.FindStudents)
-	studentsRouter.GET("/:id", studentCtrl.FindStudentById)
-	studentsRouter.POST("", studentCtrl.Register)
-	studentsRouter.PUT("", studentCtrl.Edit)
-	studentsRouter.DELETE("/:id", studentCtrl.Unreg)
+	r.POST("/login", loginJwt.Login)
+
+	studentsRouter.GET("", sc.FindStudents)
+	studentsRouter.GET("/:id", sc.FindStudentById)
+
+	studentsRouter.PUT("", sc.Edit)
+	studentsRouter.DELETE("/:id", sc.Unreg)
+
+	r.POST("/register", sc.Register)
 
 	// run server
 
-	if err := router.Run(serverPort); err != nil {
+	if err := r.Run(utils.DotEnv("SERVER_PORT")); err != nil {
 		log.Fatal(err)
 	}
 }
