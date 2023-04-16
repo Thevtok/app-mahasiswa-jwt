@@ -3,7 +3,7 @@ module mahasiswa_api
 go 1.19
 
 require (
-	github.com/Thevtok/auth v0.0.0-20230414151601-df0a449261af
+	github.com/Thevtok/auth v0.0.0-20230416153138-aaa662ef43b0
 	github.com/gin-gonic/gin v1.9.0
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.7

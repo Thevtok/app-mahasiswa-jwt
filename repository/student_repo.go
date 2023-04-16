@@ -83,18 +83,18 @@ func (r *studentRepo) Create(newstudent *model.Students) string {
 		return "failed to create student"
 	}
 
-	// insert into students table
-	query1 := "INSERT INTO students (name, age, major,c_username) VALUES ($1, $2, $3,$4)"
-	_, err = tx.Exec(query1, newstudent.Name, newstudent.Age, newstudent.Major, newstudent.C_Username)
+	// insert into credentials table
+	query1 := "INSERT INTO credentials (username, password) VALUES ($1, $2) RETURNING username"
+	_, err = tx.Exec(query1, newstudent.Username, newstudent.Password)
 	if err != nil {
 		tx.Rollback()
 		log.Println(err)
 		return "failed to create student"
 	}
 
-	// insert into credentials table
-	query2 := "INSERT INTO credentials (username, password) VALUES ($1, $2)"
-	_, err = tx.Exec(query2, newstudent.Username, newstudent.Password)
+	// insert into students table
+	query2 := "INSERT INTO students (name, age, major, c_username) VALUES ($1, $2, $3, $4)"
+	_, err = tx.Exec(query2, newstudent.Name, newstudent.Age, newstudent.Major, newstudent.Username)
 	if err != nil {
 		tx.Rollback()
 		log.Println(err)
@@ -108,7 +108,6 @@ func (r *studentRepo) Create(newstudent *model.Students) string {
 
 	return "student created successfully"
 }
-
 func (r *studentRepo) Update(student *model.Students) string {
 	res := r.GetById(student.ID)
 
@@ -117,36 +116,69 @@ func (r *studentRepo) Update(student *model.Students) string {
 		return res.(string)
 	}
 
-	// jika ada, maka update student
-	query := "UPDATE students SET name = $1, age = $2, major = $3 WHERE id = $4"
-	_, err := r.db.Exec(query, student.Name, student.Age, student.Major, student.ID)
-
+	// start transaction
+	tx, err := r.db.Begin()
 	if err != nil {
 		log.Println(err)
+		return "failed to update student"
 	}
 
-	// jika update berhasil, return pesan sukses
+	// update credentials table
+	query1 := "UPDATE credentials SET password = $1 WHERE username = $2"
+	_, err = tx.Exec(query1, student.Password, student.Username)
+	if err != nil {
+		tx.Rollback()
+		log.Println(err)
+		return "failed to update student"
+	}
+
+	// update students table
+	query2 := "UPDATE students SET name = $1, age = $2, major = $3 WHERE id = $4"
+	_, err = tx.Exec(query2, student.Name, student.Age, student.Major, student.ID)
+	if err != nil {
+		tx.Rollback()
+		log.Println(err)
+		return "failed to update student"
+	}
+
+	if err = tx.Commit(); err != nil {
+		log.Println(err)
+		return "failed to update student"
+	}
+
+	// return success message
 	return fmt.Sprintf("student with id %d updated successfully", student.ID)
 }
 
 func (r *studentRepo) Delete(id int) string {
-	res := r.GetById(id)
-
-	// jika tidak ada, return pesan
-	if res == "student not found" {
-		return res.(string)
+	// retrieve the c_username of the student with the given id
+	var cUsername string
+	query1 := "SELECT c_username FROM students WHERE id = $1"
+	err := r.db.QueryRow(query1, id).Scan(&cUsername)
+	if err == sql.ErrNoRows {
+		return "student not found"
+	} else if err != nil {
+		log.Println(err)
+		return "failed to delete student"
 	}
 
-	// jika ada, delete student
-	query := "DELETE FROM students WHERE id = $1"
-	_, err := r.db.Exec(query, id)
-
+	// delete the student with the given id
+	query2 := "DELETE FROM students WHERE id = $1"
+	_, err = r.db.Exec(query2, id)
 	if err != nil {
 		log.Println(err)
 		return "failed to delete student"
 	}
 
-	return fmt.Sprintf("student with id %d deleted successfully", id)
+	// delete the record in the credentials table with the retrieved c_username value
+	query3 := "DELETE FROM credentials WHERE username = $1"
+	_, err = r.db.Exec(query3, cUsername)
+	if err != nil {
+		log.Println(err)
+		return "failed to delete student's credentials"
+	}
+
+	return fmt.Sprintf("student with id %d and credentials  deleted successfully", id)
 }
 
 func NewStudentRepo(db *sql.DB) StudentRepo {
